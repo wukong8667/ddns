@@ -10,20 +10,41 @@ CFRECORD_NAME="hk01.cfcdndns.top"
 set -e
 
 GREEN='\033[32m'
+RED='\033[31m'
 NC='\033[0m'
+
 echo -e "${GREEN}======= Cloudflare DDNS 一键安装 =======${NC}"
 
-# 安装所需工具
-if ! command -v wget &>/dev/null; then
-    echo "正在安装 wget..."
-    if command -v apt &>/dev/null; then apt update && apt install wget -y;
-    elif command -v yum &>/dev/null; then yum install wget -y;
+# ======= 自动安装 wget curl ===============
+check_and_install() {
+    pkg="$1"
+    if ! command -v "$pkg" &>/dev/null; then
+        echo "正在安装 $pkg..."
+        if command -v apt &>/dev/null; then apt update && apt install -y "$pkg";
+        elif command -v yum &>/dev/null; then yum install -y "$pkg";
+        else
+            echo -e "${RED}不支持自动安装$pkg，请手动安装！${NC}"; exit 1
+        fi
     fi
-fi
-if ! command -v curl &>/dev/null; then
-    echo "正在安装 curl..."
-    if command -v apt &>/dev/null; then apt install curl -y;
-    elif command -v yum &>/dev/null; then yum install curl -y;
+}
+
+check_and_install wget
+check_and_install curl
+
+# ===== 自动安装 cron/crontab（防止相关报错） =====
+if ! command -v crontab &>/dev/null; then
+    echo "正在自动安装 cron/crontab..."
+    if command -v apt &>/dev/null; then
+        apt update && apt install -y cron
+        systemctl enable cron || true
+        systemctl start cron || true
+    elif command -v yum &>/dev/null; then
+        yum install -y cronie
+        systemctl enable crond || true
+        systemctl start crond || true
+    else
+        echo -e "${RED}未知系统，请手动安装cron/crontab！${NC}"
+        exit 1
     fi
 fi
 
