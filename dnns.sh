@@ -1,4 +1,21 @@
 #!/bin/bash
+MAX_TRY=24 # 等2分钟，按需修改
+for ((i=1;i<=MAX_TRY;i++)); do
+    PUBLIC_IP=$(curl -s --max-time 2 https://api-ipv4.ip.sb/ip)
+    if [[ -z "$PUBLIC_IP" ]]; then PUBLIC_IP=$(curl -s --max-time 2 https://ifconfig.me); fi
+    if [[ -z "$PUBLIC_IP" ]]; then PUBLIC_IP=$(curl -s --max-time 2 https://ipinfo.io/ip); fi
+    if [[ -n "$PUBLIC_IP" ]]; then
+        echo "已检测到公网IP: $PUBLIC_IP，继续..."
+        break
+    else
+        echo "未检测到公网IP，5秒后重试（$i/$MAX_TRY）..."
+        sleep 5
+    fi
+    if [[ "$i" == "$MAX_TRY" ]]; then
+        echo "2分钟后仍未检测到公网IP，退出。"
+        exit 1
+    fi
+done
 
 # ======= 配置区, 请只修改等号后内容 =======
 CFKEY="9283f23fbac13705d7301e32919609e4f743a"
@@ -64,23 +81,6 @@ sed -i "s/^CFKEY=.*/CFKEY=${CFKEY}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFUSER=.*/CFUSER=${CFUSER}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFZONE_NAME=.*/CFZONE_NAME=${CFZONE_NAME}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFRECORD_NAME=.*/CFRECORD_NAME=${CFRECORD_NAME}/" /root/cf-v4-ddns.sh
-
-# ====== 在脚本最顶端插入“等待获得公网IP”逻辑 ======
-sed -i '1i\
-for i in {1..24}; do\
-  PUBLIC_IP=$(curl -s --max-time 2 https://api-ipv4.ip.sb/ip);\
-  if [[ -n "$PUBLIC_IP" ]]; then\
-    echo "检测到公网IP: $PUBLIC_IP，继续执行DDNS更新...";\
-    break;\
-  fi;\
-  echo "未检测到公网IP，5秒后重试（$i/24）...";\
-  sleep 5;\
-  if [[ $i -eq 24 ]]; then\
-    echo "2分钟超时仍未检测到公网IP，脚本退出。";\
-    exit 1;\
-  fi;\
-done\
-' /root/cf-v4-ddns.sh
 
 echo -e "${GREEN}参数已写入脚本，正在测试运行...${NC}"
 bash /root/cf-v4-ddns.sh
