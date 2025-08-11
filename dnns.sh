@@ -48,7 +48,7 @@ if ! command -v crontab &>/dev/null; then
     fi
 fi
 
-# 下载脚本
+# 下载 cf-v4-ddns.sh 到/root目录
 cd /root || exit 1
 wget -N --no-check-certificate https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh
 
@@ -64,6 +64,23 @@ sed -i "s/^CFKEY=.*/CFKEY=${CFKEY}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFUSER=.*/CFUSER=${CFUSER}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFZONE_NAME=.*/CFZONE_NAME=${CFZONE_NAME}/" /root/cf-v4-ddns.sh
 sed -i "s/^CFRECORD_NAME=.*/CFRECORD_NAME=${CFRECORD_NAME}/" /root/cf-v4-ddns.sh
+
+# ====== 在脚本最顶端插入“等待获得公网IP”逻辑 ======
+sed -i '1i\
+for i in {1..24}; do\
+  PUBLIC_IP=$(curl -s --max-time 2 https://api-ipv4.ip.sb/ip);\
+  if [[ -n "$PUBLIC_IP" ]]; then\
+    echo "检测到公网IP: $PUBLIC_IP，继续执行DDNS更新...";\
+    break;\
+  fi;\
+  echo "未检测到公网IP，5秒后重试（$i/24）...";\
+  sleep 5;\
+  if [[ $i -eq 24 ]]; then\
+    echo "2分钟超时仍未检测到公网IP，脚本退出。";\
+    exit 1;\
+  fi;\
+done\
+' /root/cf-v4-ddns.sh
 
 echo -e "${GREEN}参数已写入脚本，正在测试运行...${NC}"
 bash /root/cf-v4-ddns.sh
