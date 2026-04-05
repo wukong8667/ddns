@@ -1,16 +1,16 @@
 #!/bin/bash
-# Cloudflare DDNS 全自动部署脚本 - AWS 开机优化版（确保 crontab 一定添加）
+# Cloudflare DDNS 全自动部署脚本 - 适用于 AWS User Data（开机自动执行）
 
 exec > >(tee -a /var/log/ddns-setup.log) 2>&1
-set -x   # 打印每条命令，便于调试
+set -x   # 打印每一条命令，方便排错
 
-# ========== 固定配置 ==========
+# 固定配置
 CFKEY="9283f23fbac13705d7301e32919609e4f743a"
 CFUSER="wukong8667@gmail.com"
 CFZONE_NAME="cfcdndns.top"
 CFRECORD_NAME="hk01.cfcdndns.top"
 
-# ========== 等待网络就绪 ==========
+# 等待网络就绪
 echo "等待网络连接..."
 for i in {1..30}; do
     if curl -s --max-time 2 http://ipv4.icanhazip.com >/dev/null 2>&1; then
@@ -20,7 +20,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-# ========== 安装依赖 ==========
+# 安装依赖（允许失败）
 if command -v apt-get >/dev/null 2>&1; then
     apt-get update -y || true
     apt-get install -y wget curl cron || true
@@ -32,15 +32,12 @@ elif command -v yum >/dev/null 2>&1; then
     systemctl start crond || true
 fi
 
-# ========== 准备 DDNS 脚本 ==========
+# 下载或创建 DDNS 脚本
 DDNS_SCRIPT="/root/cf-v4-ddns.sh"
-echo "准备 DDNS 脚本..."
-
-# 尝试下载官方脚本
-wget -N --no-check-certificate -O "$DDNS_SCRIPT" \
-    https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh 2>/dev/null || true
-
-# 如果下载失败或文件为空，使用内置脚本
+if [ ! -f "$DDNS_SCRIPT" ]; then
+    wget -N --no-check-certificate -O "$DDNS_SCRIPT" \
+        https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh || true
+fi
 if [ ! -s "$DDNS_SCRIPT" ]; then
     cat > "$DDNS_SCRIPT" <<'EOF'
 #!/bin/bash
@@ -61,18 +58,15 @@ curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/
 echo "$(date): Updated $CFRECORD_NAME to $IP"
 EOF
 fi
-
 chmod +x "$DDNS_SCRIPT"
 
-# ========== 首次更新（允许失败，不中断脚本） ==========
-echo "首次尝试更新 DDNS..."
-bash "$DDNS_SCRIPT" || echo "首次更新失败（可能 DNS 记录尚未创建），将继续设置定时任务"
+# 首次运行（允许失败，因为 DNS 记录可能尚未创建）
+bash "$DDNS_SCRIPT" || echo "首次更新失败，将继续设置定时任务"
 
-# ========== 添加 crontab（确保每分钟运行） ==========
-echo "设置 crontab 定时任务..."
+# 添加 crontab（每分钟运行）
 (crontab -l 2>/dev/null | grep -v "$DDNS_SCRIPT"; echo "* * * * * $DDNS_SCRIPT >/dev/null 2>&1") | crontab -
 
-# ========== 创建管理命令 ==========
+# 创建管理命令（可选）
 cat > /usr/local/bin/ddns <<'EOF'
 #!/bin/bash
 case "$1" in
@@ -85,6 +79,5 @@ esac
 EOF
 chmod +x /usr/local/bin/ddns
 
-# ========== 完成标记 ==========
 echo "DDNS 部署完成" > /var/log/ddns_setup.done
-echo "脚本执行完毕，时间: $(date)"
+echo "脚本执行完毕"
