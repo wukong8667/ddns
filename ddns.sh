@@ -6,7 +6,7 @@ set -e
 CFKEY="9283f23fbac13705d7301e32919609e4f743a"
 CFUSER="wukong8667@gmail.com"
 CFZONE_NAME="cfcdndns.top"
-CFRECORD_NAME="jp01.cfcdndns.top"
+CFRECORD_NAME="hk01.cfcdndns.top"
 # =======================================
 
 DDNS_SH="/root/cf-v4-ddns.sh"
